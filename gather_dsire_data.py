@@ -20,7 +20,7 @@ def get_raw_json() -> pd.DataFrame:
     return pd.DataFrame(data)
 
 
-def clean_dsire_df(df) -> pd.DataFrame:
+def convert_objs_to_cols(df) -> pd.DataFrame:
     """
     Clean raw DSIRE dataframe.
     Break out the data from the state, type, category, and sector objects into
@@ -48,6 +48,74 @@ def clean_dsire_df(df) -> pd.DataFrame:
     return df
 
 
+def find_identical_columns(df) -> list:
+    """
+    DSIRE's use of objects in their json results in many columns that are identical.
+    This searches for identical columns so we can drop them.
+    Returns a list of columns we can drop (only one for each pair of identical columns)
+    """
+    identical_cols = []
+
+    columns = df.columns
+
+    # Compare each pair of columns
+    for i in range(len(columns)):
+        for j in range(i + 1, len(columns)):
+            if df[columns[i]].equals(df[columns[j]]):
+                identical_cols.append((columns[i], columns[j]))
+
+    return [x[0] for x in identical_cols]
+
+
+def find_cols_without_multiple_values(df) -> list:
+    """
+    The fromSir is just a column of False. This checks to see if any other columns
+    are similarly useless.
+    """
+    r_val = []
+
+    for col in df.columns:
+        if len(df[col].unique()) == 1:
+            r_val.append(col)
+
+    return r_val
+
+
+def drop_uneeded_cols(df) -> pd.DataFrame:
+    """Drop identical, non-unique, and other unneeded columns"""
+    # Drop columns we know we don't want immediately
+    df.drop(
+        columns=[
+            "startDate",
+            "startDateDisplay",
+            "startDateText",
+            "endDate",
+            "endDateDisplay",
+            "endDateText",
+            "parameterSets",
+            "lastUpdated",
+            "additionalTechnologies",
+            "summary",
+            "websiteUrl",
+            "administrator",
+            "fundingSource",
+            "budget",
+        ],
+        inplace=True,
+    )
+
+    # Find and drop other columns we don't want
+    cols_to_drop = find_identical_columns(df)
+    cols_to_drop.extend(find_cols_without_multiple_values(df))
+    df.drop(columns=cols_to_drop, inplace=True)
+
+    df.rename(
+        columns={"updatedTs": "lastUpdated", "createdTs": "dateCreated"}, inplace=True
+    )
+    return df
+
+
 if __name__ == "__main__":
     uc_data = get_raw_json()
-    clean_dsire_df(uc_data).to_csv("Data/cleaned_dsire_data.csv", index=False)
+    uc_data = convert_objs_to_cols(uc_data)
+    drop_uneeded_cols(uc_data).to_csv("Data/clean_dsire_data.csv", index=False)
