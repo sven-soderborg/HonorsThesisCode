@@ -1,0 +1,2 @@
+Create visuals showing summary statistics for each state
+Create visuals showing the policies enacted in the US
